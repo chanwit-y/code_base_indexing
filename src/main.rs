@@ -2,6 +2,7 @@ use core::fmt;
 use std::{
     error::Error,
     fmt::{Display, Formatter},
+    fs,
     path::Path,
 };
 
@@ -11,38 +12,80 @@ use async_openai::{
     Client,
 };
 
-enum FileType {
-    File,
-    Directory,
-}
+// enum FileType {
+//     File,
+//     Directory,
+// }
 
-impl Display for FileType {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            FileType::File => write!(f, "file"),
-            FileType::Directory => write!(f, "directory"),
-        }
-    }
-}
+// impl Display for FileType {
+//     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+//         match self {
+//             FileType::File => write!(f, "file"),
+//             FileType::Directory => write!(f, "directory"),
+//         }
+//     }
+// }
 
-fn check_path_type(path_str: &str) -> Result<FileType, Box<dyn Error>> {
+fn deep_path(
+    path_str: &str,
+    indent: usize,
+    ignore_dirs: &Vec<String>,
+) -> Result<(), Box<dyn Error>> {
     let path = Path::new(path_str);
 
     if !path.exists() {
         return Err(format!("Path {} does not exist", path_str).into());
     }
 
-    match path.is_file() {
-        true => Ok(FileType::File),
-        false => Ok(FileType::Directory),
+    if path.is_dir() {
+        let files = fs::read_dir(path)?;
+        for file in files {
+            let file = file?;
+            let path = file.path();
+
+            if ignore_dirs.contains(&path.file_name().unwrap().to_str().unwrap().to_string()) {
+                continue;
+            }
+            println!(
+                "{}{}: {}",
+                " ".repeat(indent),
+                if path.is_dir() { "dir" } else { "file" },
+                path.file_name().unwrap().to_str().unwrap()
+            );
+
+            if path.is_dir() {
+                let _ = deep_path(path.to_str().unwrap(), indent + 3, ignore_dirs);
+            }
+        }
     }
+
+    Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let path = check_path_type("src/main.rs")?;
-
-    println!("path: {}", path);
+    let ignore_dirs = vec![
+        "node_modules".to_string(),
+        ".git".to_string(),
+        ".next".to_string(),
+        "dist".to_string(),
+        "build".to_string(),
+        "target".to_string(),
+        "venv".to_string(),
+        "env".to_string(),
+        "env.local".to_string(),
+        "env.development.local".to_string(),
+        "env.test.local".to_string(),
+        "env.production.local".to_string(),
+        "env.development".to_string(),
+        "env.test".to_string(),
+        "env.production".to_string(),
+    ];
+    deep_path(
+        "/Users/chanwit_y/Desktop/Projects/synapse-o",
+        0,
+        &ignore_dirs,
+    )?;
 
     // dotenvy::dotenv().ok();
 
