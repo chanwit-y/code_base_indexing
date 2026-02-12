@@ -1,0 +1,10 @@
+[package]
+name = "code_base_indexing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-openai = { version = "0.32", features = ["chat-completion"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+dotenvy = "0.15"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
