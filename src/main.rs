@@ -1,4 +1,5 @@
 use core::fmt;
+use regex::Regex;
 use std::{
     error::Error,
     fmt::{Display, Formatter},
@@ -26,6 +27,56 @@ use async_openai::{
 //     }
 // }
 
+// fn get_import_path(path_str: &str) -> String {}
+
+enum ImportType {
+    internal,
+    external
+}
+
+struct ImportPath {
+    source: String,
+    imports: Vec<String>,
+    import_type: ImportType
+}
+
+fn read_ts_file_content(path: &str) -> Result<String, Box<dyn Error>> {
+    let p = Path::new(path);
+    let ex = p
+        .extension()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| format!("Path {} is not a file", path))?;
+
+    if !p.is_file() || (ex != "ts" && ex != "tsx") {
+        return Ok("".to_string());
+    }
+
+    Ok(fs::read_to_string(path)
+        .expect("Failed to read file")
+        .into())
+}
+
+fn get_import_path(content: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    let pattern = r#"import\s+(?:([\w*\s{},]+)\s+from\s+)?['"]([^'"]+)['"]"#;
+    let re = Regex::new(pattern)?;
+
+    println!("Searching for imports...");
+    println!("------------------------");
+
+    for cap in re.captures_iter(content) {
+        println!("cap: {:?}", &cap);
+        let imported_items = cap.get(1).map(|m| m.as_str().trim());
+        println!("imported items: {:?}", imported_items);
+        // let imported_items = cap.get(1).map_or("Default/None", |m| m.as_str().trim());
+        // let path = &cap[2];
+
+        // println!("Imported: {imported_items:?} from {path:?}");
+        println!("------------------------");
+    }
+
+    Ok(vec![])
+}
+
 fn deep_path(
     path_str: &str,
     indent: usize,
@@ -46,15 +97,20 @@ fn deep_path(
             if ignore_dirs.contains(&path.file_name().unwrap().to_str().unwrap().to_string()) {
                 continue;
             }
+
             println!(
-                "{}{}: {}",
+                "{}{}({}): {}",
                 " ".repeat(indent),
                 if path.is_dir() { "dir" } else { "file" },
+                indent,
                 path.file_name().unwrap().to_str().unwrap()
             );
 
             if path.is_dir() {
                 let _ = deep_path(path.to_str().unwrap(), indent + 3, ignore_dirs);
+            } else if path.is_file() {
+                let content = read_ts_file_content(path.to_str().unwrap())?;
+                get_import_path(content.as_str())?;
             }
         }
     }
@@ -75,6 +131,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "example".to_string(),
         "icons".to_string(),
         "env".to_string(),
+        "assets".to_string(),
         "drizzle".to_string(),
         "env.local".to_string(),
         "env.development.local".to_string(),
@@ -85,7 +142,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "env.production".to_string(),
     ];
     deep_path(
-        "/Users/chanwit_y/Desktop/Projects/synapse-o",
+        "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src",
         0,
         &ignore_dirs,
     )?;
