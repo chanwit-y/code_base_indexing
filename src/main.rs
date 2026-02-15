@@ -28,16 +28,17 @@ use async_openai::{
 // }
 
 // fn get_import_path(path_str: &str) -> String {}
-
-enum ImportType {
-    internal,
-    external
+#[derive(Debug)]
+struct Import {
+    items: Vec<String>,
+    from: String,
 }
 
-struct ImportPath {
-    source: String,
-    imports: Vec<String>,
-    import_type: ImportType
+
+#[derive(Debug)]
+struct CodeBase {
+    path: String,
+    imports: Vec<Import>,
 }
 
 fn read_ts_file_content(path: &str) -> Result<String, Box<dyn Error>> {
@@ -56,32 +57,50 @@ fn read_ts_file_content(path: &str) -> Result<String, Box<dyn Error>> {
         .into())
 }
 
-fn get_import_path(content: &str) -> Result<Vec<String>, Box<dyn Error>> {
+fn get_import_path(content: &str) -> Result<Vec<Import>, Box<dyn Error>> {
     let pattern = r#"import\s+(?:([\w*\s{},]+)\s+from\s+)?['"]([^'"]+)['"]"#;
     let re = Regex::new(pattern)?;
 
-    println!("Searching for imports...");
-    println!("------------------------");
+    let mut result: Vec<Import> = Vec::new();
 
     for cap in re.captures_iter(content) {
-        println!("cap: {:?}", &cap);
-        let imported_items = cap.get(1).map(|m| m.as_str().trim());
-        println!("imported items: {:?}", imported_items);
+        // println!("cap: {:?}", &cap);
+        let imported_items = cap
+            .get(1)
+            .map_or("",|m| m.as_str().trim())
+            .trim_matches(|c| {
+                c == '{' || c == '}' || c == ' ' || c == '\n' || c == '\t' || c == '\r'
+            })
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<String>>();
+
+        let from = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap();
+
+        // println!("--> imported items: {:?}", imported_items);
+        // println!("--> imported path: {:?}", from);
+
+        result.push(Import {
+            items: imported_items,
+            from: from,
+        });
         // let imported_items = cap.get(1).map_or("Default/None", |m| m.as_str().trim());
         // let path = &cap[2];
 
         // println!("Imported: {imported_items:?} from {path:?}");
-        println!("------------------------");
+        // println!("------------------------");
     }
 
-    Ok(vec![])
+    Ok(result)
 }
 
 fn deep_path(
     path_str: &str,
     indent: usize,
     ignore_dirs: &Vec<String>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<Vec<CodeBase>, Box<dyn Error>> {
+    let mut result: Vec<CodeBase> = Vec::new();
     let path = Path::new(path_str);
 
     if !path.exists() {
@@ -98,24 +117,30 @@ fn deep_path(
                 continue;
             }
 
-            println!(
-                "{}{}({}): {}",
-                " ".repeat(indent),
-                if path.is_dir() { "dir" } else { "file" },
-                indent,
-                path.file_name().unwrap().to_str().unwrap()
-            );
+            // println!(
+            // //     "{}{}({}): {}",
+            // //     " ".repeat(indent),
+            // //     if path.is_dir() { "dir" } else { "file" },
+            // //     indent,
+            // //     path.file_name().unwrap().to_str().unwrap()
+            // // );
 
             if path.is_dir() {
-                let _ = deep_path(path.to_str().unwrap(), indent + 3, ignore_dirs);
+                let r = deep_path(path.to_str().unwrap(), indent + 3, ignore_dirs);
+                result.extend(r?);
             } else if path.is_file() {
                 let content = read_ts_file_content(path.to_str().unwrap())?;
-                get_import_path(content.as_str())?;
+                let imports = get_import_path(content.as_str())?;
+
+                result.push(CodeBase {
+                    path: path.to_str().unwrap().to_string(),
+                    imports: imports,
+                });
             }
         }
     }
 
-    Ok(())
+    Ok(result)
 }
 
 #[tokio::main]
@@ -141,11 +166,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "env.test".to_string(),
         "env.production".to_string(),
     ];
-    deep_path(
+    let code_bases = deep_path(
         "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src",
         0,
         &ignore_dirs,
     )?;
+
+
+    for c in code_bases {
+        println!("------------------------");
+        println!("path: {}", c.path);
+        println!("imports: {:#?}", c.imports);
+        println!("------------------------");
+    }
 
     // dotenvy::dotenv().ok();
 
