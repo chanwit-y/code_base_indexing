@@ -167,7 +167,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "env.production".to_string(),
     ];
     let code_bases = deep_path(
-        "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src",
+        "",
         0,
         &ignore_dirs,
     )?;
