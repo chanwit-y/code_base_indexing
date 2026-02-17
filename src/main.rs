@@ -4,6 +4,7 @@ use std::{
     error::Error,
     fmt::{Display, Formatter},
     fs,
+    ops::Index,
     path::Path,
 };
 
@@ -34,9 +35,9 @@ struct Import {
     from: String,
 }
 
-
 #[derive(Debug)]
 struct CodeBase {
+    indent: usize,
     path: String,
     imports: Vec<Import>,
 }
@@ -57,7 +58,7 @@ fn read_ts_file_content(path: &str) -> Result<String, Box<dyn Error>> {
         .into())
 }
 
-fn get_import_path(content: &str) -> Result<Vec<Import>, Box<dyn Error>> {
+fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Error>> {
     let pattern = r#"import\s+(?:([\w*\s{},]+)\s+from\s+)?['"]([^'"]+)['"]"#;
     let re = Regex::new(pattern)?;
 
@@ -67,7 +68,7 @@ fn get_import_path(content: &str) -> Result<Vec<Import>, Box<dyn Error>> {
         // println!("cap: {:?}", &cap);
         let imported_items = cap
             .get(1)
-            .map_or("",|m| m.as_str().trim())
+            .map_or("", |m| m.as_str().trim())
             .trim_matches(|c| {
                 c == '{' || c == '}' || c == ' ' || c == '\n' || c == '\t' || c == '\r'
             })
@@ -77,6 +78,54 @@ fn get_import_path(content: &str) -> Result<Vec<Import>, Box<dyn Error>> {
             .collect::<Vec<String>>();
 
         let from = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap();
+
+        let file_name = Path::new(path)
+            .file_name()
+            .and_then(|x| x.to_str())
+            .unwrap();
+        let pwd = path.replace(&format!("/{}", file_name), "");
+        // let folders = pwd.split("/").collect::<Vec<&str>>();
+
+        let pattern_back = r#"^../"#;
+        let pattern_current = r#"^./"#;
+        let re_back = Regex::new(pattern_back)?;
+        let re_current = Regex::new(pattern_current)?;
+
+        let is_back = re_back.is_match(&from);
+        let is_current = re_current.is_match(&from);
+
+        let mut folders: Vec<&str> = Vec::new();
+        if is_back {
+            println!("------------------------");
+            println!("path: {}", path);
+            println!("from: {}", from);
+            let count_back = from
+                .split("/")
+                .map(|x| x.to_string())
+                .filter(|x| x == ".." || x == "./")
+                .count();
+            println!("pwd: {}", pwd);
+            let pwd_list = pwd.split("/");
+            folders = pwd_list.to_owned().take(pwd_list.count() - count_back).collect::<Vec<&str>>();
+
+            from.split('/').skip(count_back).for_each(|x| {
+                folders.push(x);
+            });
+
+            println!("count_back: {}", count_back);
+            println!("folders: {:?}", folders);
+            println!("------------------------");
+        } else if is_current {
+            // folders = pwd.split("/").collect::<Vec<&str>>();
+            // for f in from.split("/") {
+
+            // }
+        }
+
+        // println!("from: {}", from);
+        // println!("folders: {:?}", folders);
+        // println!("is_back: {:?}", is_back);
+        // println!("is_current: {:?}", is_current);
 
         // println!("--> imported items: {:?}", imported_items);
         // println!("--> imported path: {:?}", from);
@@ -130,10 +179,11 @@ fn deep_path(
                 result.extend(r?);
             } else if path.is_file() {
                 let content = read_ts_file_content(path.to_str().unwrap())?;
-                let imports = get_import_path(content.as_str())?;
+                let imports = get_import_path(content.as_str(), path.to_str().unwrap())?;
 
                 result.push(CodeBase {
                     path: path.to_str().unwrap().to_string(),
+                    indent: indent,
                     imports: imports,
                 });
             }
@@ -167,18 +217,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "env.production".to_string(),
     ];
     let code_bases = deep_path(
-        "",
+        "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src",
         0,
         &ignore_dirs,
     )?;
 
-
-    for c in code_bases {
-        println!("------------------------");
-        println!("path: {}", c.path);
-        println!("imports: {:#?}", c.imports);
-        println!("------------------------");
-    }
+    // for c in code_bases {
+    //     println!("------------------------");
+    //     println!("path: {}", c.path);
+    //     println!("imports: {:#?}", c.imports);
+    //     println!("indent: {}", c.indent);
+    //     println!("------------------------");
+    // }
 
     // dotenvy::dotenv().ok();
 
