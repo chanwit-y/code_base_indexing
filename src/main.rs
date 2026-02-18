@@ -65,7 +65,11 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
     let mut result: Vec<Import> = Vec::new();
 
     for cap in re.captures_iter(content) {
-        // println!("cap: {:?}", &cap);
+
+        if cap.get(0).is_none() || cap.get(0).unwrap().as_str().trim().is_empty() || cap.get(0).unwrap().as_str().trim().starts_with("//") {
+            continue;
+        }
+
         let imported_items = cap
             .get(1)
             .map_or("", |m| m.as_str().trim())
@@ -84,7 +88,6 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
             .and_then(|x| x.to_str())
             .unwrap();
         let pwd = path.replace(&format!("/{}", file_name), "");
-        // let folders = pwd.split("/").collect::<Vec<&str>>();
 
         let pattern_back = r#"^../"#;
         let pattern_current = r#"^./"#;
@@ -96,20 +99,20 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
 
         let mut folders: Vec<&str> = Vec::new();
         if is_back {
-            println!("------------------------");
-            println!("path: {}", path);
-            println!("from: {}", from);
+
             let count_back = from
                 .split("/")
                 .map(|x| x.to_string())
                 .filter(|x| x == ".." || x == "./")
                 .count();
-            println!("pwd: {}", pwd);
+
             let pwd_list = pwd.split("/");
+
             folders = pwd_list
                 .to_owned()
                 .take(pwd_list.count() - count_back)
                 .collect::<Vec<&str>>();
+
 
             from.split('/').skip(count_back).for_each(|x| {
                 folders.push(x);
@@ -121,24 +124,23 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
                 .map(|x| x.to_string())
                 .collect::<Vec<String>>()
                 .join("/");
-            println!("dir from: {}", d);
-
             let y = Path::new(d.as_str());
-            let z = fs::read_dir(y)?.map(|f| f.unwrap().path().file_name().unwrap().to_str().unwrap().to_string()).collect::<Vec<String>>();
+            let z = fs::read_dir(y)?
+                .filter_map(|f| f.ok().map(|x| x.path()))
+                .filter(|x| {
+                    x.is_file() && x.extension().and_then(|x| x.to_str()) == Some("ts")
+                        || x.extension().and_then(|x| x.to_str()) == Some("tsx")
+                })
+                .filter_map(|x| {
+                    x.file_name()
+                        .and_then(|x| x.to_str())
+                        .map(|x| x.to_string())
+                })
+                .collect::<Vec<String>>();
+
 
             println!("z: {:?}", z);
 
-            // for file in z {
-            //     let file = file?;
-            //     let path = file.path();
-            //     println!("z path: {}", path.display());
-            // }
-
-
-            println!("count_back: {}", count_back);
-            println!("folders: {:?}", folders);
-            println!("from path: {}", folders.join("/"));
-            println!("------------------------");
         } else if is_current {
             // folders = pwd.split("/").collect::<Vec<&str>>();
             // for f in from.split("/") {
