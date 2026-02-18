@@ -106,14 +106,38 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
                 .count();
             println!("pwd: {}", pwd);
             let pwd_list = pwd.split("/");
-            folders = pwd_list.to_owned().take(pwd_list.count() - count_back).collect::<Vec<&str>>();
+            folders = pwd_list
+                .to_owned()
+                .take(pwd_list.count() - count_back)
+                .collect::<Vec<&str>>();
 
             from.split('/').skip(count_back).for_each(|x| {
                 folders.push(x);
             });
 
+            let d = folders
+                .iter()
+                .take(folders.len() - 1)
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>()
+                .join("/");
+            println!("dir from: {}", d);
+
+            let y = Path::new(d.as_str());
+            let z = fs::read_dir(y)?.map(|f| f.unwrap().path().file_name().unwrap().to_str().unwrap().to_string()).collect::<Vec<String>>();
+
+            println!("z: {:?}", z);
+
+            // for file in z {
+            //     let file = file?;
+            //     let path = file.path();
+            //     println!("z path: {}", path.display());
+            // }
+
+
             println!("count_back: {}", count_back);
             println!("folders: {:?}", folders);
+            println!("from path: {}", folders.join("/"));
             println!("------------------------");
         } else if is_current {
             // folders = pwd.split("/").collect::<Vec<&str>>();
