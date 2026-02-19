@@ -58,6 +58,35 @@ fn read_ts_file_content(path: &str) -> Result<String, Box<dyn Error>> {
         .into())
 }
 
+fn get_file_extension(folders: &Vec<&str>) -> Result<String, Box<dyn Error>> {
+    let path = folders
+        .iter()
+        .take(folders.len() - 1)
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join("/");
+
+    let path = Path::new(path.as_str());
+    let file_names = fs::read_dir(path)?
+        .filter_map(|f| f.ok().map(|x| x.path()))
+        .filter(|x| {
+            x.is_file() && x.extension().and_then(|x| x.to_str()) == Some("ts")
+                || x.extension().and_then(|x| x.to_str()) == Some("tsx")
+        })
+        .filter_map(|x| {
+            x.file_name()
+                .and_then(|x| x.to_str())
+                .map(|x| x.to_string())
+        })
+        .collect::<Vec<String>>();
+
+    let name = folders.last().unwrap().to_string();
+
+    println!("z: {:?}", file_names);
+
+    Ok("".to_string())
+}
+
 fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Error>> {
     let pattern = r#"import\s+(?:([\w*\s{},]+)\s+from\s+)?['"]([^'"]+)['"]"#;
     let re = Regex::new(pattern)?;
@@ -65,8 +94,10 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
     let mut result: Vec<Import> = Vec::new();
 
     for cap in re.captures_iter(content) {
-
-        if cap.get(0).is_none() || cap.get(0).unwrap().as_str().trim().is_empty() || cap.get(0).unwrap().as_str().trim().starts_with("//") {
+        if cap.get(0).is_none()
+            || cap.get(0).unwrap().as_str().trim().is_empty()
+            || cap.get(0).unwrap().as_str().trim().starts_with("//")
+        {
             continue;
         }
 
@@ -87,6 +118,7 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
             .file_name()
             .and_then(|x| x.to_str())
             .unwrap();
+
         let pwd = path.replace(&format!("/{}", file_name), "");
 
         let pattern_back = r#"^../"#;
@@ -99,72 +131,48 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
 
         let mut folders: Vec<&str> = Vec::new();
         if is_back {
-
             let count_back = from
                 .split("/")
                 .map(|x| x.to_string())
                 .filter(|x| x == ".." || x == "./")
                 .count();
 
-            let pwd_list = pwd.split("/");
-
-            folders = pwd_list
+            folders = pwd
+                .split("/")
                 .to_owned()
-                .take(pwd_list.count() - count_back)
+                .take(pwd.split("/").to_owned().count() - count_back)
                 .collect::<Vec<&str>>();
-
 
             from.split('/').skip(count_back).for_each(|x| {
                 folders.push(x);
             });
 
-            let d = folders
-                .iter()
-                .take(folders.len() - 1)
-                .map(|x| x.to_string())
-                .collect::<Vec<String>>()
-                .join("/");
-            let y = Path::new(d.as_str());
-            let z = fs::read_dir(y)?
-                .filter_map(|f| f.ok().map(|x| x.path()))
-                .filter(|x| {
-                    x.is_file() && x.extension().and_then(|x| x.to_str()) == Some("ts")
-                        || x.extension().and_then(|x| x.to_str()) == Some("tsx")
-                })
-                .filter_map(|x| {
-                    x.file_name()
-                        .and_then(|x| x.to_str())
-                        .map(|x| x.to_string())
-                })
-                .collect::<Vec<String>>();
+            println!("-----------------------------------");
+            println!("path: {:?}", path);
+            println!("imported_items: {:?}", imported_items);
+            println!("from: {:?}", from);
+            println!("file_name: {:?}", file_name);
+            println!("pwd: {:?}", pwd);
+            println!("is_back: {:?}", is_back);
+            println!("is_current: {:?}", is_current);
+            println!("count back: {}", count_back);
+            println!("folders: {:?}", folders);
 
+            let d = get_file_extension(&folders)?;
+            // println!("d: {}", d);
+            println!("-----------------------------------");
 
-            println!("z: {:?}", z);
-
+        //         println!("---------------------------------------");
+        //         println!("folders: {:?}", folders);
+        //         println!("z: {:?}", z);
+        //         println!("---------------------------------------");
         } else if is_current {
-            // folders = pwd.split("/").collect::<Vec<&str>>();
-            // for f in from.split("/") {
-
-            // }
         }
 
-        // println!("from: {}", from);
-        // println!("folders: {:?}", folders);
-        // println!("is_back: {:?}", is_back);
-        // println!("is_current: {:?}", is_current);
-
-        // println!("--> imported items: {:?}", imported_items);
-        // println!("--> imported path: {:?}", from);
-
-        result.push(Import {
-            items: imported_items,
-            from: from,
-        });
-        // let imported_items = cap.get(1).map_or("Default/None", |m| m.as_str().trim());
-        // let path = &cap[2];
-
-        // println!("Imported: {imported_items:?} from {path:?}");
-        // println!("------------------------");
+        //     result.push(Import {
+        //         items: imported_items,
+        //         from: from,
+        //     });
     }
 
     Ok(result)
