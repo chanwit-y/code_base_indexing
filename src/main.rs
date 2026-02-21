@@ -1,9 +1,11 @@
 use core::fmt;
 use regex::Regex;
+use serde::Serialize;
 use std::{
     error::Error,
     fmt::{Display, Formatter},
-    fs,
+    fs::{self, File},
+    io::BufWriter,
     ops::Index,
     path::Path,
 };
@@ -29,13 +31,15 @@ use async_openai::{
 // }
 
 // fn get_import_path(path_str: &str) -> String {}
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Import {
     items: Vec<String>,
     from: String,
+    from_path: String,
+    is_external: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct CodeBase {
     indent: usize,
     path: String,
@@ -81,10 +85,15 @@ fn get_file_extension(folders: &Vec<&str>) -> Result<String, Box<dyn Error>> {
         .collect::<Vec<String>>();
 
     let name = folders.last().unwrap().to_string();
+    let mut result: &str = "";
+    // println!("list name: {:?}", file_names);
+    file_names.iter().for_each(|f| {
+        if f.starts_with(&name) {
+            result = f;
+        }
+    });
 
-    println!("z: {:?}", file_names);
-
-    Ok("".to_string())
+    Ok(result.to_string())
 }
 
 fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Error>> {
@@ -130,6 +139,7 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
         let is_current = re_current.is_match(&from);
 
         let mut folders: Vec<&str> = Vec::new();
+        let mut from_path: String = String::from("");
         if is_back {
             let count_back = from
                 .split("/")
@@ -147,32 +157,36 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
                 folders.push(x);
             });
 
-            println!("-----------------------------------");
-            println!("path: {:?}", path);
-            println!("imported_items: {:?}", imported_items);
-            println!("from: {:?}", from);
-            println!("file_name: {:?}", file_name);
-            println!("pwd: {:?}", pwd);
-            println!("is_back: {:?}", is_back);
-            println!("is_current: {:?}", is_current);
-            println!("count back: {}", count_back);
-            println!("folders: {:?}", folders);
+            let import_file_name = get_file_extension(&folders)?;
+            if import_file_name == "" {
+                folders.push("index.ts");
+            } else {
+                folders.pop();
+                folders.push(import_file_name.as_str());
+            }
 
-            let d = get_file_extension(&folders)?;
-            // println!("d: {}", d);
-            println!("-----------------------------------");
-
-        //         println!("---------------------------------------");
-        //         println!("folders: {:?}", folders);
-        //         println!("z: {:?}", z);
-        //         println!("---------------------------------------");
+            from_path = folders.join("/");
         } else if is_current {
+            let fp = format!("{}/{}", pwd, from.replace("./", "").as_str());
+            let import_file_name = get_file_extension(&fp.split("/").collect::<Vec<&str>>())
+                .unwrap_or("index.ts".to_string());
+            folders = fp.split("/").collect::<Vec<&str>>();
+            if import_file_name == "" {
+                folders.push("index.ts");
+            } else {
+                folders.push(import_file_name.as_str());
+            }
+
+            from_path = folders.join("/");
         }
 
-        //     result.push(Import {
-        //         items: imported_items,
-        //         from: from,
-        //     });
+        let is_external = from_path == "";
+        result.push(Import {
+            items: imported_items,
+            from: from,
+            from_path: from_path,
+            is_external: is_external,
+        });
     }
 
     Ok(result)
@@ -222,6 +236,7 @@ fn deep_path(
                 });
             }
         }
+        // println!("{:#?}", result);
     }
 
     Ok(result)
@@ -255,6 +270,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         0,
         &ignore_dirs,
     )?;
+
+    let file = File::create("code_bases.json")?;
+    let writer = BufWriter::new(file);
+
+    serde_json::to_writer_pretty(writer, &code_bases)?;
 
     // for c in code_bases {
     //     println!("------------------------");
