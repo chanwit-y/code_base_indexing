@@ -16,27 +16,14 @@ use async_openai::{
     Client,
 };
 
-// enum FileType {
-//     File,
-//     Directory,
-// }
 
-// impl Display for FileType {
-//     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-//         match self {
-//             FileType::File => write!(f, "file"),
-//             FileType::Directory => write!(f, "directory"),
-//         }
-//     }
-// }
-
-// fn get_import_path(path_str: &str) -> String {}
 #[derive(Debug, Serialize)]
 struct Import {
     items: Vec<String>,
     from: String,
     from_path: String,
     is_external: bool,
+    imports: Vec<Import>,
 }
 
 #[derive(Debug, Serialize)]
@@ -174,6 +161,7 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
             if import_file_name == "" {
                 folders.push("index.ts");
             } else {
+                folders.pop();
                 folders.push(import_file_name.as_str());
             }
 
@@ -186,6 +174,7 @@ fn get_import_path(content: &str, path: &str) -> Result<Vec<Import>, Box<dyn Err
             from: from,
             from_path: from_path,
             is_external: is_external,
+            imports: Vec::new(),
         });
     }
 
@@ -214,14 +203,6 @@ fn deep_path(
                 continue;
             }
 
-            // println!(
-            // //     "{}{}({}): {}",
-            // //     " ".repeat(indent),
-            // //     if path.is_dir() { "dir" } else { "file" },
-            // //     indent,
-            // //     path.file_name().unwrap().to_str().unwrap()
-            // // );
-
             if path.is_dir() {
                 let r = deep_path(path.to_str().unwrap(), indent + 3, ignore_dirs);
                 result.extend(r?);
@@ -236,7 +217,6 @@ fn deep_path(
                 });
             }
         }
-        // println!("{:#?}", result);
     }
 
     Ok(result)
@@ -251,7 +231,77 @@ fn write_json(code_bases: &Vec<CodeBase>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// fn retrieve_deep_imports() {}
+fn deep_import(
+    code_bases: &Vec<CodeBase>,
+    imports: &Vec<Import>,
+    base_path: &str,
+) -> Result<Vec<Import>, Box<dyn Error>> {
+    let mut visited: Vec<String> = Vec::new();
+    deep_import_recursive(code_bases, imports, &mut visited, base_path)
+}
+
+fn deep_import_recursive(
+    code_bases: &Vec<CodeBase>,
+    imports: &Vec<Import>,
+    visited: &mut Vec<String>,
+    base_path: &str,
+) -> Result<Vec<Import>, Box<dyn Error>> {
+    let mut result: Vec<Import> = Vec::new();
+
+    for import in imports {
+        if import.is_external || import.from_path.is_empty() {
+            result.push(Import {
+                items: import.items.clone(),
+                from: import.from.clone(),
+                from_path: import.from_path.clone(),
+                is_external: import.is_external,
+                imports: Vec::new(),
+            });
+            continue;
+        }
+
+        if !import.from_path.starts_with(base_path) {
+            result.push(Import {
+                items: import.items.clone(),
+                from: import.from.clone(),
+                from_path: import.from_path.clone(),
+                is_external: import.is_external,
+                imports: Vec::new(),
+            });
+            continue;
+        }
+
+        if visited.contains(&import.from_path) {
+            result.push(Import {
+                items: import.items.clone(),
+                from: import.from.clone(),
+                from_path: import.from_path.clone(),
+                is_external: import.is_external,
+                imports: Vec::new(),
+            });
+            continue;
+        }
+
+        visited.push(import.from_path.clone());
+
+        let sub_imports = code_bases
+            .iter()
+            .find(|cb| cb.path == import.from_path)
+            .map(|cb| deep_import_recursive(code_bases, &cb.imports, visited, base_path))
+            .unwrap_or(Ok(Vec::new()))?;
+
+        result.push(Import {
+            items: import.items.clone(),
+            from: import.from.clone(),
+            from_path: import.from_path.clone(),
+            is_external: import.is_external,
+            imports: sub_imports,
+        });
+    }
+
+    Ok(result)
+}
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -276,16 +326,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "env.test".to_string(),
         "env.production".to_string(),
     ];
+    let base_path = "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src";
     let code_bases = deep_path(
-        "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src",
+        base_path,
         0,
         &ignore_dirs,
     )?;
 
+    let code_bases: Vec<CodeBase> = code_bases
+        .iter()
+        .map(|cb| {
+            let imports = deep_import(&code_bases, &cb.imports, base_path).unwrap_or_default();
+            CodeBase {
+                indent: cb.indent,
+                path: cb.path.clone(),
+                imports,
+            }
+        })
+        .collect();
+
     write_json(&code_bases)?;
-
-
-
 
     // for c in code_bases {
     //     println!("------------------------");
