@@ -242,6 +242,17 @@ fn deep_path(
     Ok(result)
 }
 
+fn write_json(code_bases: &Vec<CodeBase>) -> Result<(), Box<dyn Error>> {
+    let file = File::create("code_bases.json")?;
+    let writer = BufWriter::new(file);
+
+    serde_json::to_writer_pretty(writer, &code_bases)?;
+
+    Ok(())
+}
+
+// fn retrieve_deep_imports() {}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let ignore_dirs = vec![
@@ -271,10 +282,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         &ignore_dirs,
     )?;
 
-    let file = File::create("code_bases.json")?;
-    let writer = BufWriter::new(file);
+    write_json(&code_bases)?;
 
-    serde_json::to_writer_pretty(writer, &code_bases)?;
+
+
 
     // for c in code_bases {
     //     println!("------------------------");
