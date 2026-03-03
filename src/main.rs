@@ -1,50 +1,79 @@
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 use async_openai::{
-    Client, config::OpenAIConfig, types::embeddings::CreateEmbeddingRequestArgs
+    config::OpenAIConfig,
+    types::embeddings::{CreateEmbeddingRequestArgs, Embedding},
+    Client,
 };
+use qdrant_client::{
+    Qdrant, qdrant::{PointStruct, UpsertPointsBuilder, Value}
+};
+use serde::Serialize;
+use uuid::Uuid;
 
-mod command;
+// mod command;
+// fn run_import_code_bases() -> Result<(), Box<dyn Error>> {
+//     let base_path = "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src";
+//     command::import::run(base_path)?;
 
-fn run_import_code_bases() -> Result<(), Box<dyn Error>> {
-    let base_path = "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src";
-    command::import::run(base_path)?;
+//     Ok(())
+// }
 
-    Ok(())
-}
-
-async fn embed_texts(openai: &Client<OpenAIConfig>) -> Result<Vec<Vec<f32>>, Box<dyn Error>> {
+async fn embed_texts(
+    openai: &Client<OpenAIConfig>,
+    input: &Vec<String>,
+) -> Result<Vec<Embedding>, Box<dyn Error>> {
     let request = CreateEmbeddingRequestArgs::default()
         .model("text-embedding-3-small")
-        .input("Hello, world!")
+        .input(input)
         .build()?;
 
-    println!("request: {:#?}", request);
+    let response = openai.embeddings().create(request).await?;
 
-    // let response = openai.embeddings().create(request).await?;
+    Ok(response.data)
+}
 
-    Ok(vec![vec![0.0, 0.0, 0.0]])
+#[derive(Serialize)]
+struct StoredPoint {
+    id: String,
+    name: String,
+    embedding: Vec<f32>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     dotenvy::dotenv().ok();
 
-
     let http_client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
 
-    let openai = Client::with_config(
-        OpenAIConfig::new().with_api_base("https://api.openai.com/v1"),
-    )
-    .with_http_client(http_client);
+    let openai =
+        Client::with_config(OpenAIConfig::new().with_api_base("https://api.openai.com/v1"))
+            .with_http_client(http_client);
 
-    embed_texts(&openai).await?;
+    let items = vec!["Test".to_string(), "A".to_string()];
+    let embed = embed_texts(&openai, &items).await?;
+
+    let points: Vec<PointStruct> = items
+        .iter()
+        .zip(embed.iter())
+        .map(|(item, vectors)| {
+            PointStruct::new(
+                Uuid::new_v4().to_string(),
+                vectors.embedding.clone(),
+                HashMap::from([("name".to_string(), Value::from(item.clone()))]),
+            )
+        })
+        .collect();
+
+    // qdrant-client uses gRPC; connect to the gRPC port (6334), not REST (6333).
+    let qdrant = Qdrant::from_url("http://localhost:6334").build()?;
+    qdrant
+        .upsert_points(UpsertPointsBuilder::new("synapse", points))
+        .await?;
 
     // let client = Qdrant::from_url("http://localhost:6334").build();
-
-
 
     // let request = CreateChatCompletionRequestArgs::default()
     //     .model("gpt-3.5-turbo")
