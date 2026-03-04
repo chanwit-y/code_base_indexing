@@ -11,13 +11,13 @@ use qdrant_client::{
 use serde::Serialize;
 use uuid::Uuid;
 
-// mod command;
-// fn run_import_code_bases() -> Result<(), Box<dyn Error>> {
-//     let base_path = "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src";
-//     command::import::run(base_path)?;
+mod command;
+fn run_import_code_bases() -> Result<(), Box<dyn Error>> {
+    let base_path = "/Users/chanwit_y/Desktop/Projects/banpu/fingw-ui/src";
+    command::import::run(base_path)?;
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 async fn embed_texts(
     openai: &Client<OpenAIConfig>,
@@ -40,8 +40,7 @@ struct StoredPoint {
     embedding: Vec<f32>,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn upsert_points(qdrant: &Qdrant, points: Vec<PointStruct>) -> Result<(), Box<dyn Error>> {
     dotenvy::dotenv().ok();
 
     let http_client = reqwest::Client::builder()
@@ -71,22 +70,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let qdrant = Qdrant::from_url("http://localhost:6334").build()?;
     qdrant
         .upsert_points(UpsertPointsBuilder::new("synapse", points))
-        .await?;
+        .await?; 
 
-    // let client = Qdrant::from_url("http://localhost:6334").build();
+    Ok(())
+}
 
-    // let request = CreateChatCompletionRequestArgs::default()
-    //     .model("gpt-3.5-turbo")
-    //     .messages(vec![ChatCompletionRequestUserMessage::from("Hello, how are you?").into()])
-    //     .build()?;
 
-    // let response = client.chat().create(request).await?;
-
-    // if let Some(choice) = response.choices.first() {
-    //     if let Some(ref msg) = choice.message.content {
-    //         println!("message: {msg}");
-    //     }
-    // }
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    // run_import_code_bases()?;
+    let result = command::import::load_and_sort_by_indent("/Users/chanwit_y/Desktop/Projects/poc/code_base_indexing/store/216c2f47-3961-4c58-b4aa-8111b6eb8fd0.json")?;
+    command::import::write_json(&result)?;
 
     Ok(())
 }

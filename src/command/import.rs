@@ -1,5 +1,5 @@
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fs::{self, File},
@@ -7,16 +7,16 @@ use std::{
     path::Path,
 };
 use uuid::Uuid;
-#[derive(Debug, Serialize)]
-struct Import {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Import {
     items: Vec<String>,
     from: String,
     from_path: String,
     is_external: bool,
     imports: Vec<Import>,
 }
-#[derive(Debug, Serialize)]
-struct CodeBase {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CodeBase {
     indent: usize,
     path: String,
     imports: Vec<Import>,
@@ -286,9 +286,9 @@ fn generate_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
-fn write_json(code_bases: &Vec<CodeBase>) -> Result<String, Box<dyn Error>> {
+pub fn write_json(code_bases: &Vec<CodeBase>) -> Result<String, Box<dyn Error>> {
     let name = generate_uuid();
-    let path = format!("../store/{}.json", name);
+    let path = format!("store/{}.json", name);
     let path = Path::new(&path);
     if !path.parent().unwrap().exists() {
         fs::create_dir_all(path.parent().unwrap())?;
@@ -347,4 +347,12 @@ pub fn run(src_path: &str) -> Result<String, Box<dyn Error>> {
     println!("create json file");
     let path = write_json(&code_bases)?;
     Ok(path)
+}
+
+pub fn load_and_sort_by_indent(path: &str) -> Result<Vec<CodeBase>, Box<dyn Error>> {
+    let content = fs::read_to_string(path)?;
+    let mut json: Vec<CodeBase> = serde_json::from_str(&content)?;
+    json.sort_by_key(|k| std::cmp::Reverse(k.indent));
+
+    Ok(json)
 }
