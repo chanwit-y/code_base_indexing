@@ -9,17 +9,17 @@ use std::{
 use uuid::Uuid;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Import {
-    items: Vec<String>,
-    from: String,
-    from_path: String,
-    is_external: bool,
-    imports: Vec<Import>,
+    pub items: Vec<String>,
+    pub from: String,
+    pub from_path: String,
+    pub is_external: bool,
+    pub imports: Vec<Import>,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CodeBase {
-    indent: usize,
-    path: String,
-    imports: Vec<Import>,
+    pub indent: usize,
+    pub path: String,
+    pub imports: Vec<Import>,
 }
 
 fn read_ts_file_content(path: &str) -> Result<String, Box<dyn Error>> {

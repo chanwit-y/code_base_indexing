@@ -1,12 +1,19 @@
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, fs, path::Path};
 
 use async_openai::{
     config::OpenAIConfig,
-    types::embeddings::{CreateEmbeddingRequestArgs, Embedding},
+    types::{
+        chat::{
+            ChatCompletionRequestMessage, ChatCompletionRequestUserMessageArgs,
+            CreateChatCompletionRequestArgs,
+        },
+        embeddings::{CreateEmbeddingRequestArgs, Embedding},
+    },
     Client,
 };
 use qdrant_client::{
-    Qdrant, qdrant::{PointStruct, UpsertPointsBuilder, Value}
+    qdrant::{PointStruct, UpsertPointsBuilder, Value},
+    Qdrant,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -70,17 +77,90 @@ async fn upsert_points(qdrant: &Qdrant, points: Vec<PointStruct>) -> Result<(), 
     let qdrant = Qdrant::from_url("http://localhost:6334").build()?;
     qdrant
         .upsert_points(UpsertPointsBuilder::new("synapse", points))
-        .await?; 
+        .await?;
 
     Ok(())
 }
 
+// async fn chat(prompt: &str) -> Result<String, Box<dyn Error>> {
+
+// }
+
+fn write_file(path: &str, content: &str) -> Result<(), Box<dyn Error>> {
+    let path = Path::new(path);
+    fs::write(&path, content)?;
+
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    dotenvy::dotenv().ok();
     // run_import_code_bases()?;
-    let result = command::import::load_and_sort_by_indent("/Users/chanwit_y/Desktop/Projects/poc/code_base_indexing/store/216c2f47-3961-4c58-b4aa-8111b6eb8fd0.json")?;
-    command::import::write_json(&result)?;
+    let result  = command::import::load_and_sort_by_indent("/Users/chanwit_y/Desktop/Projects/poc/code_base_indexing/store/216c2f47-3961-4c58-b4aa-8111b6eb8fd0.json")?;
+
+    let auth = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
+    let openai = Client::with_config(OpenAIConfig::new().with_api_key(auth.as_str()));
+
+    for code_base in result {
+        let is_not_internal = code_base.imports.iter().all(|i| !i.is_external);
+        if is_not_internal {
+            let path = Path::new(&code_base.path);
+            let content = fs::read_to_string(path)?;
+
+            let prompt = format!(
+                r#"You are an expert React TypeScript architect. I am providing you with a main React component file, along with the code (or summaries) of its imported dependencies. 
+Your task is to generate a highly compressed, information-dense summary of the MAIN component, integrating necessary context from its dependencies.
+
+Please analyze the provided files and output a summary using the following structure:
+
+1. **Component Purpose:** 1-2 sentences explaining what this UI component does in the broader application.
+2. **Props & Types (`Interface`):** A concise list of the required/optional Props. Omit standard React.FC boilerplate.
+3. **State & Custom Hooks:** What local state it manages (`useState`, `useReducer`), and which crucial custom hooks it consumes (especially those from the provided dependencies).
+4. **Side Effects & Data Fetching:** Key `useEffect` triggers, API calls, or global state mutations (e.g., Redux dispatches, Context API updates).
+5. **Component Composition (JSX Skeleton):** A high-level bulleted list of the major child components it renders. Ignore styling (Tailwind/CSS) and basic HTML tags (div, span).
+
+**CRITICAL CONSTRAINTS:**
+- DO NOT output raw UI code, styling classes, or standard React boilerplate.
+- Assume the reader is a Senior Frontend Engineer. Focus purely on data flow, component hierarchy, and business logic.
+- Output the response in concise Markdown format. Optimize for the absolute minimum token count.
+
+<dependencies>
+</dependencies>
+
+<main_file name="{}">
+{}
+</main_file>"#,
+                code_base.path, content
+            );
+
+            let request = CreateChatCompletionRequestArgs::default()
+                .model("gpt-5.1")
+                .messages(vec![ChatCompletionRequestMessage::User(
+                    ChatCompletionRequestUserMessageArgs::default()
+                        .content(content)
+                        .build()?,
+                )])
+                .build()?;
+
+            let response = openai.chat().create(request).await?;
+            let content = response
+                .choices
+                .into_iter()
+                .next()
+                .and_then(|c| c.message.content)
+                .unwrap_or_default();
+
+            println!("path: {}", code_base.path);
+            println!("{}", content);
+
+            write_file("store/summary.md", &content)?;
+
+            break;
+        }
+    }
+
+    // command::import::write_json(&result)?;
 
     Ok(())
 }

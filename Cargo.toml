@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-openai = { version = "0.33.0", features = ["embedding"] }
+async-openai = { version = "0.33.0", features = ["embedding", "chat-completion"] }
 # tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tokio = { version = "1", features = ["full"] }
 dotenvy = "0.15"
