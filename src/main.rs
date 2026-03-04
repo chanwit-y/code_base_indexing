@@ -104,7 +104,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut count = 0;
     for code_base in result {
-        let is_not_internal = code_base.imports.iter().all(|i| !i.is_external);
+        let is_not_internal = code_base.imports.iter().all(|i| i.is_external);
+        // println!("imports: {:?}", code_base.imports);
+        println!("is not internal: {}", is_not_internal);
         if is_not_internal {
             let path = Path::new(&code_base.path);
             let content = fs::read_to_string(path)?;
@@ -153,7 +155,7 @@ Please analyze the provided files and output a summary using the following struc
                 .unwrap_or_default();
 
             println!("path: {}", code_base.path);
-            println!("{}", content);
+            // println!("{}", content);
 
             let name = code_base.path.split("/").last().unwrap().to_string();
 
