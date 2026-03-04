@@ -102,6 +102,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let auth = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
     let openai = Client::with_config(OpenAIConfig::new().with_api_key(auth.as_str()));
 
+    let mut count = 0;
     for code_base in result {
         let is_not_internal = code_base.imports.iter().all(|i| !i.is_external);
         if is_not_internal {
@@ -154,9 +155,15 @@ Please analyze the provided files and output a summary using the following struc
             println!("path: {}", code_base.path);
             println!("{}", content);
 
-            write_file("store/summary.md", &content)?;
+            let name = code_base.path.split("/").last().unwrap().to_string();
 
-            break;
+            write_file(format!("store/{}.md", name).as_str(), &content)?;
+
+            if count == 2 {
+                break;
+            }
+
+            count += 1;
         }
     }
 
