@@ -14,3 +14,5 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 uuid = { version = "1", features = ["v4"] }
 qdrant-client = "1"
+tesseract = "0.15.2"
+pdfium-render = "0.8"

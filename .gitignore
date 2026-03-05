@@ -2,3 +2,7 @@
 .env
 .cargo-home
 store
+pdf
+tmp
+third_party
+assets
