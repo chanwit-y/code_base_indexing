@@ -21,6 +21,47 @@ This project now keeps OCR logic in `src/ocr.rs` to make `src/main.rs` smaller a
 6. Normalize common OCR mistakes (`normalize_ocr_text`).
 7. Join page results into one output string.
 
+## Install Third-Party Dependencies
+
+The OCR flow needs external native libraries. On macOS, use this setup:
+
+1. Install required tools:
+
+```bash
+brew install tesseract leptonica
+```
+
+2. Install language data (English + Thai):
+
+```bash
+mkdir -p third_party/tessdata
+curl -L -o third_party/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
+curl -L -o third_party/tessdata/tha.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/tha.traineddata
+```
+
+3. Install Pdfium (`libpdfium.dylib`):
+   - Download macOS binary from [pdfium-binaries releases](https://github.com/bblanchon/pdfium-binaries/releases)
+   - Put `libpdfium.dylib` in one of these paths:
+     - `/opt/homebrew/lib/libpdfium.dylib`
+     - `/usr/local/lib/libpdfium.dylib`
+     - `./third_party/pdfium/lib/libpdfium.dylib`
+   - Or set `PDFIUM_LIB_PATH` to the absolute path.
+
+4. Export runtime env vars (recommended):
+
+```bash
+export TESSDATA_PREFIX="$PWD/third_party/tessdata"
+export PDFIUM_LIB_PATH="$PWD/third_party/pdfium/lib/libpdfium.dylib"
+```
+
+5. Verify install:
+
+```bash
+tesseract --version
+ls "$TESSDATA_PREFIX"/eng.traineddata "$TESSDATA_PREFIX"/tha.traineddata
+ls "$PDFIUM_LIB_PATH"
+```
+
 ## Environment Variables
 
 - `PDFIUM_LIB_PATH`: absolute path to `libpdfium.dylib`.
