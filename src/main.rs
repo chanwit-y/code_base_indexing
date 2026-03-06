@@ -187,7 +187,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //     }
 
     let path = Path::new(
-        "/Users/chanwit_y/Desktop/Projects/poc/code_base_indexing/pdf/REC-108708-010000000019860.pdf",
+        "/Users/chanwit_y/Desktop/Projects/poc/code_base_indexing/pdf/REC-168223-010000000019863.pdf",
     );
     let ocr_output = ocr::extract_pdf_ocr_text(path)?;
 
