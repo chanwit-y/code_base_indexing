@@ -335,6 +335,9 @@ pub fn extract_pdf_ocr_text(path: &Path) -> Result<String, Box<dyn Error>> {
 
     fs::create_dir_all("tmp")?;
     let mut ocr_pages: Vec<String> = Vec::new();
+
+    // println!("std::env::var('OCR_LANGS'): {}", std::env::var("OCR_LANGS").unwrap_or_default());
+
     let language_candidates: Vec<String> = std::env::var("OCR_LANGS")
         .ok()
         .map(|raw| {
@@ -349,6 +352,8 @@ pub fn extract_pdf_ocr_text(path: &Path) -> Result<String, Box<dyn Error>> {
             let resolved = resolve_tesseract_languages();
             vec![resolved]
         });
+
+    // println!("language_candidates: {:?}", language_candidates);
 
     for page_index in 0..max_pages {
         println!(
