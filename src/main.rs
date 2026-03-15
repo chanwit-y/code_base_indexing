@@ -26,6 +26,8 @@ use uuid::Uuid;
 
 mod command;
 mod ocr;
+mod md;
+
 fn run_import_code_bases() -> Result<(), Box<dyn Error>> {
     let base_path = "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src";
     command::import::run(base_path)?;
@@ -107,7 +109,7 @@ fn format_unix_time(time: SystemTime) -> String {
     }
 }
 
-async fn code_base_indexing(content: String) -> Result<(), Box<dyn Error>> {
+async fn code_base_indexing(content: String) -> Result<String, Box<dyn Error>> {
     dotenvy::dotenv().ok();
     let auth = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set");
     let openai = Client::with_config(OpenAIConfig::new().with_api_key(auth.as_str()));
@@ -242,29 +244,42 @@ Format each file as:
 
     write_file(format!("store/application.md").as_str(), &content)?;
 
-    Ok(())
+    Ok(content)
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let paths = vec![
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/SearchMobile.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/Filter.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/index.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Search.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Category.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/index.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/List.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/index.tsx".to_string(),
-    ];
+    // let paths = vec![
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/SearchMobile.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/Filter.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/index.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Search.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Category.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/index.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/List.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/index.tsx".to_string(),
+    // ];
 
-    let mut content = String::new();
-    for path in paths {
-        let c = fs::read_to_string(&path)?;
-        content.push_str(c.as_str());
+    // let mut content = String::new();
+    // for path in paths {
+    //     let c = fs::read_to_string(&path)?;
+    //     content.push_str(c.as_str());
+    // }
+    // let res = code_base_indexing(content).await?;
+    // println!("res: {}", res);
+    let res = fs::read_to_string("store/e2e-application.md")?;
+    let files = md::extract_files_map(&res);
+
+    for (path, code) in &files {
+        let dest = Path::new("store/e2e").join(path);
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&dest, code)?;
+        println!("wrote: {}", dest.display());
     }
-    code_base_indexing(content).await?;
 
+    
     // code_base_indexing("/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/index.tsx".to_string()).await?;
 
     // let started_at = SystemTime::now();
