@@ -249,35 +249,35 @@ Format each file as:
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // let paths = vec![
-    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/SearchMobile.tsx".to_string(),
-    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/Filter.tsx".to_string(),
-    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/index.tsx".to_string(),
-    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Search.tsx".to_string(),
-    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Category.tsx".to_string(),
-    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/index.tsx".to_string(),
-    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/List.tsx".to_string(),
-    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/index.tsx".to_string(),
-    // ];
+    let paths = vec![
+        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/SearchMobile.tsx".to_string(),
+        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/Filter.tsx".to_string(),
+        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/index.tsx".to_string(),
+        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Search.tsx".to_string(),
+        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Category.tsx".to_string(),
+        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/index.tsx".to_string(),
+        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/List.tsx".to_string(),
+        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/index.tsx".to_string(),
+    ];
 
-    // let mut content = String::new();
-    // for path in paths {
-    //     let c = fs::read_to_string(&path)?;
-    //     content.push_str(c.as_str());
-    // }
-    // let res = code_base_indexing(content).await?;
-    // println!("res: {}", res);
-    let res = fs::read_to_string("store/e2e-application.md")?;
-    let files = md::extract_files_map(&res);
-
-    for (path, code) in &files {
-        let dest = Path::new("store/e2e").join(path);
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&dest, code)?;
-        println!("wrote: {}", dest.display());
+    let mut content = String::new();
+    for path in paths {
+        let c = fs::read_to_string(&path)?;
+        content.push_str(c.as_str());
     }
+    let res = code_base_indexing(content).await?;
+    println!("res: {}", res);
+    // let res = fs::read_to_string("store/e2e-application.md")?;
+    // let files = md::extract_files_map(&res);
+
+    // for (path, code) in &files {
+    //     let dest = Path::new("store/e2e").join(path);
+    //     if let Some(parent) = dest.parent() {
+    //         fs::create_dir_all(parent)?;
+    //     }
+    //     fs::write(&dest, code)?;
+    //     println!("wrote: {}", dest.display());
+    // }
 
     
     // code_base_indexing("/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/index.tsx".to_string()).await?;
