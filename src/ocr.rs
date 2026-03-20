@@ -1,6 +1,15 @@
-use std::{error::Error, fs, io, path::Path};
+use std::{collections::HashSet, error::Error, fs, path::Path};
 
-use pdfium_render::prelude::{PdfPageRenderRotation, PdfRenderConfig, Pdfium};
+use anyhow::{Context, Result as AnyhowResult};
+use pdfium_render::prelude::{PdfRenderConfig, PdfPageRenderRotation, Pixels, Pdfium};
+use rxing::{BarcodeFormat, DecodeHints};
+
+#[derive(Debug, Clone)]
+pub struct QrPageResult {
+    pub page_index: usize,
+    pub page_number: usize,
+    pub qr_contents: Vec<String>,
+}
 
 fn bind_pdfium() -> Result<Pdfium, Box<dyn Error>> {
     if let Ok(custom_path) = std::env::var("PDFIUM_LIB_PATH") {
@@ -51,7 +60,7 @@ fn bind_pdfium() -> Result<Pdfium, Box<dyn Error>> {
          \n3) Or export `PDFIUM_LIB_PATH=/absolute/path/to/libpdfium.dylib`"
     );
 
-    Err(io::Error::new(io::ErrorKind::NotFound, message).into())
+    Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, message)))
 }
 
 fn configure_tessdata_prefix() {
@@ -315,6 +324,14 @@ fn normalize_ocr_text(text: &str) -> String {
     normalized
 }
 
+pub fn test_read_pdf(path: &Path) -> Result<(), Box<dyn Error>> {
+    let pdfium = bind_pdfium()?;
+    let document = pdfium.load_pdf_from_file(path, None)?;
+    let page_count = document.pages().len();
+    println!("page_count: {}", page_count);
+    Ok(())
+}
+
 pub fn extract_pdf_ocr_text(path: &Path) -> Result<String, Box<dyn Error>> {
     let pdfium = bind_pdfium()?;
     let document = pdfium.load_pdf_from_file(path, None)?;
@@ -463,4 +480,208 @@ pub fn extract_pdf_ocr_text(path: &Path) -> Result<String, Box<dyn Error>> {
         .join("\n");
 
     Ok(ocr_output)
+}
+
+pub fn extract_slide_pdf_text(path: &Path) -> Result<Vec<String>, Box<dyn Error>> {
+    let pdfium = bind_pdfium()?;
+    let document = pdfium.load_pdf_from_file(path, None)?;
+    let page_count = document.pages().len();
+    let max_pages: u16 = std::env::var("OCR_MAX_PAGES")
+        .ok()
+        .and_then(|raw| raw.parse::<u16>().ok())
+        .map(|limit| limit.min(page_count))
+        .unwrap_or(page_count);
+
+    println!(
+        "slide pdf — page_count: {} (processing: {})",
+        page_count, max_pages
+    );
+
+    fs::create_dir_all("tmp")?;
+
+    let language_candidates: Vec<String> = std::env::var("OCR_LANGS")
+        .ok()
+        .map(|raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<String>>()
+        })
+        .filter(|langs| !langs.is_empty())
+        .unwrap_or_else(|| vec![resolve_tesseract_languages()]);
+
+    let slide_psm_modes = [
+        tesseract::PageSegMode::PsmSparseText,
+        tesseract::PageSegMode::PsmSingleBlock,
+        tesseract::PageSegMode::PsmAuto,
+    ];
+
+    let mut ocr_pages: Vec<String> = Vec::new();
+
+    for page_index in 0..max_pages {
+        println!(
+            "\n-- slide page {} -------------------------------",
+            page_index + 1
+        );
+
+        let page = document.pages().get(page_index)?;
+
+        let width_pts = page.width().value;
+        let height_pts = page.height().value;
+        let is_landscape = width_pts > height_pts;
+
+        let (target_width, max_height) = if is_landscape {
+            (3508, 2480)
+        } else {
+            (2480, 3508)
+        };
+
+        let render_config = PdfRenderConfig::new()
+            .set_target_width(target_width)
+            .set_maximum_height(max_height);
+
+        let page_image = page.render_with_config(&render_config)?.as_image();
+        let gray_img = page_image.grayscale();
+
+        let variant_stem = format!("tmp/slide_{page_index}");
+        let gray_path = format!("{variant_stem}_gray.jpg");
+        gray_img.save(&gray_path)?;
+
+        let contrast_img = gray_img.adjust_contrast(30.0);
+        let contrast_path = format!("{variant_stem}_contrast.jpg");
+        contrast_img.save(&contrast_path)?;
+
+        let variant_paths = [gray_path, contrast_path];
+
+        let mut best_text = String::new();
+        let mut best_score = i64::MIN;
+
+        for variant_path in &variant_paths {
+            for psm in &slide_psm_modes {
+                for language in &language_candidates {
+                    let (candidate_text, confidence) =
+                        run_ocr_with_mode(variant_path, *psm, language)?;
+                    let score = score_slide_text(&candidate_text, confidence);
+
+                    if score > best_score {
+                        best_score = score;
+                        best_text = candidate_text;
+                    }
+                }
+            }
+        }
+
+        let trimmed = best_text.trim().to_string();
+        println!("extracted_text: {}", trimmed);
+        ocr_pages.push(trimmed);
+    }
+
+    Ok(ocr_pages)
+}
+
+fn score_slide_text(text: &str, confidence: i32) -> i64 {
+    let alnum_count = text.chars().filter(|c| c.is_alphanumeric()).count() as i64;
+
+    let token_score: i64 = text
+        .split_whitespace()
+        .map(|tok| tok.chars().filter(|c| c.is_alphanumeric()).count())
+        .filter(|len| *len >= 2)
+        .map(|len| (len * len) as i64)
+        .sum();
+
+    let noisy_symbol_count = text
+        .chars()
+        .filter(|c| !c.is_whitespace() && !c.is_alphanumeric() && !",.:;/-_()%#&+*'\"@!?".contains(*c))
+        .count() as i64;
+
+    let line_count = text.lines().filter(|l| !l.trim().is_empty()).count().max(1) as i64;
+    let avg_line_len = alnum_count / line_count;
+
+    token_score
+        + (alnum_count * 3)
+        + (confidence.max(0) as i64 * 200)
+        + (avg_line_len * 10)
+        - (noisy_symbol_count * 5)
+}
+
+pub fn find_qr_pages(
+    pdf_path: &Path,
+    pdfium: &Pdfium,
+    render_dpi: u16,
+) -> AnyhowResult<Vec<QrPageResult>> {
+    let document = pdfium
+        .load_pdf_from_file(pdf_path, None)
+        .with_context(|| format!("Failed to open PDF: {}", pdf_path.display()))?;
+
+    let page_count = document.pages().len();
+    println!(
+        "PDF has {} page(s). Scanning for QR codes at {} DPI …",
+        page_count, render_dpi
+    );
+
+    let mut hints = DecodeHints {
+        PossibleFormats: Some(HashSet::from([BarcodeFormat::QR_CODE])),
+        TryHarder: Some(true),
+        ..Default::default()
+    };
+
+    let mut results: Vec<QrPageResult> = Vec::new();
+
+    for (idx, page) in document.pages().iter().enumerate() {
+        let bitmap = page
+            .render_with_config(
+                &PdfRenderConfig::new()
+                    .set_target_width(
+                        (page.width().to_inches() * render_dpi as f32) as Pixels,
+                    )
+                    .set_target_height(
+                        (page.height().to_inches() * render_dpi as f32) as Pixels,
+                    ),
+            )
+            .with_context(|| format!("Failed to render page {}", idx + 1))?;
+
+        let dyn_image = bitmap.as_image();
+        let luma = dyn_image.to_luma8();
+        let (w, h) = luma.dimensions();
+
+        let detect_result = rxing::helpers::detect_multiple_in_luma_with_hints(
+            luma.into_raw(),
+            w,
+            h,
+            &mut hints,
+        );
+
+        println!("detect_result: {:?}", detect_result);
+
+        // match detect_result {
+        //     Ok(codes) if !codes.is_empty() => {
+        //         let contents: Vec<String> =
+        //             codes.iter().map(|c| c.get_text().unwrap_or_default().to_string()).collect();
+        //         println!(
+        //             "  Page {}: found {} QR code(s) → {:?}",
+        //             idx + 1,
+        //             contents.len(),
+        //             contents
+        //         );
+        //         results.push(QrPageResult {
+        //             page_index: idx,
+        //             page_number: idx + 1,
+        //             qr_contents: contents,
+        //         });
+        //     }
+        //     _ => {
+        //         println!("  Page {}: no QR codes found", idx + 1);
+        //     }
+        // }
+    }
+
+    Ok(results)
+}
+
+pub fn call_pdf_page_qr_count(pdf_path: &Path) -> Result<(), Box<dyn Error>> {
+    let pdfium = bind_pdfium()?;
+    // let page_count = document.pages().len();
+    find_qr_pages(pdf_path, &pdfium, 300)?;
+    Ok(())
 }

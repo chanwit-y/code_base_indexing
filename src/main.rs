@@ -249,24 +249,24 @@ Format each file as:
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let paths = vec![
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/SearchMobile.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/Filter.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/index.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Search.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Category.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/index.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/List.tsx".to_string(),
-        "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/index.tsx".to_string(),
-    ];
+    // let paths = vec![
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/SearchMobile.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/Filter.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/mobile/index.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Search.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/Category.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/desktop/index.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/List.tsx".to_string(),
+    //     "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src/components/container/application/index.tsx".to_string(),
+    // ];
 
-    let mut content = String::new();
-    for path in paths {
-        let c = fs::read_to_string(&path)?;
-        content.push_str(c.as_str());
-    }
-    let res = code_base_indexing(content).await?;
-    println!("res: {}", res);
+    // let mut content = String::new();
+    // for path in paths {
+    //     let c = fs::read_to_string(&path)?;
+    //     content.push_str(c.as_str());
+    // }
+    // let res = code_base_indexing(content).await?;
+    // println!("res: {}", res);
     // let res = fs::read_to_string("store/e2e-application.md")?;
     // let files = md::extract_files_map(&res);
 
@@ -360,10 +360,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // }
 
     // ----------------------- DEMO OCR -----------------------
-    // let path = Path::new(
-    //     "/Users/chanwit_y/Desktop/Projects/poc/code_base_indexing/pdf/REC-108800-010000000019892.pdf",
-    // );
+    let path = Path::new(
+        "/Users/chanwit_y/Desktop/Projects/poc/code_base_indexing/pdf/REC-108708-010000000019860.pdf",
+    );
     // let ocr_output = ocr::extract_pdf_ocr_text(path)?;
+    ocr::call_pdf_page_qr_count(path)?;
 
     // let output_path = "tmp/ocr_output.txt";
     // write_file(output_path, &ocr_output)?;
