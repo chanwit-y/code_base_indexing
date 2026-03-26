@@ -1,3 +1,5 @@
+pub fn extract_test_scenarios_from_user_story() -> String {
+	r#"
 You are a senior QA Engineer specializing in E2E testing.
 
 From the User Story below, extract all possible Test Scenarios.
@@ -17,4 +19,6 @@ Ensure full coverage across:
 - Permission/authorization cases (if applicable)
 - All possible state transitions
 
-User Story:
+User Story:	
+	"#.to_string()
+}

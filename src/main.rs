@@ -27,6 +27,7 @@ use uuid::Uuid;
 mod command;
 mod ocr;
 mod md;
+mod prompt;
 
 fn run_import_code_bases() -> Result<(), Box<dyn Error>> {
     let base_path = "/Users/chanwit_y/Desktop/Projects/banpu/mybp-ui-v2/src";
